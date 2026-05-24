@@ -1,13 +1,14 @@
 from pathlib import Path
 from pypdf import PdfReader
 import logging
+
 logger = logging.getLogger(__name__)
 
 
 class PDFService:
 
     @staticmethod
-    def extract_text(pdf_path: Path) -> str:
+    def extract_text(pdf_path: Path) -> tuple[bool, str]:
         """
         Extract all text from a PDF file.
         """
@@ -26,11 +27,10 @@ class PDFService:
 
                 logger.info(f"Processed page {page_number + 1}")
 
-            return extracted_text
+            return True, extracted_text
 
         except Exception as e:
             logger.error(f"PDF extraction failed: {e}")
-            raise
-
+            return False , f"PDF extraction failed: {e}"
 
         

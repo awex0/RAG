@@ -3,43 +3,36 @@ from pathlib import Path
 from fastapi import HTTPException, UploadFile
 import logging
 import uuid
-
+from config import settings
 
 logger = logging.getLogger(__name__)
 
-ALLOWED_TYPES = {
-    "application/pdf",
-    "text/plain"
-}
-
-
 class FileService:
 
-    def __init__(self, upload_dir: Path):
-        self.upload_dir = upload_dir
+    def __init__(self):
+        self.upload_dir = settings.UPLOAD_DIR
         self.upload_dir.mkdir(exist_ok=True)
 
-    def check_file_type(self, content_type: str | None) -> bool:
-        return bool(content_type and content_type in ALLOWED_TYPES)
+    def check_validity(self, file: UploadFile | None) -> tuple[bool, str]:
+        if not file.filename:
+            return False , "Filename is missing"
+
+        if not self.check_file_type(file.content_type):
+            return False , "Unsupported file type"
+
+        return True , ""
 
     def generate_unique_filename(self, original_name: str) -> str:
         return f"{uuid.uuid4()}_{original_name}"
 
-    async def save_upload(self, file: UploadFile) -> Path:
-        if not file.filename:
-            raise HTTPException(400, "Filename is missing")
+    async def save_upload(self, file: UploadFile , target_path: Path) -> tuple[bool, str]:
 
-        if not self.check_file_type(file.content_type):
-            raise HTTPException(415, "Unsupported file type")
-
-        original_name = Path(file.filename).name
-        unique_name = self.generate_unique_filename(original_name)
-        target = self.upload_dir / unique_name
-
-        async with aiofiles.open(target, "wb") as out:
+        async with aiofiles.open(target_path, "wb") as out:
             while chunk := await file.read(1024 * 1024):
                 await out.write(chunk)
 
-        logger.info(f"Saved file: {target}")
+        logger.info(f"Saved file: {target_path}")
 
-        return target
+        return True , "File uploaded successfully" 
+
+file_service = FileService()
