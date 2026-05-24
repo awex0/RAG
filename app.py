@@ -1,82 +1,170 @@
-import aiofiles
 from pathlib import Path
-from typing import List, Optional, Annotated
-# CRUCIAL: Make sure UploadFile and File are imported together from fastapi
-from fastapi import FastAPI, File, UploadFile, Form, HTTPException, BackgroundTasks
 import logging
 
+from fastapi import (
+    FastAPI,
+    UploadFile,
+    File,
+    HTTPException,
+    BackgroundTasks
+)
+
+from config import settings
+from services.file_service import FileService
+from services.pdf_service import PDFService
+
+
+# Logging
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI()
-UPLOAD_DIR = Path("uploads")
-UPLOAD_DIR.mkdir(exist_ok=True)
+
+app = FastAPI(
+    title="RAG Ingestion API",
+    description="Backend ingestion pipeline for PDFs",
+    version="1.0.0"
+)
 
 
-# --- BACKGROUND HELPER FUNCTION ---
-# This runs after the API sends a response back to the user
-async def generate_thumbnail(path: str) -> None:
-    # You can add heavy logic here later (e.g., parsing PDFs or image resizing)
-    logger.info(f"Background processing started for file: {path}")
+# Services
+
+file_service = FileService(settings.UPLOAD_DIR)
 
 
-# --- EXISTING ENPOINTS ---
+# Background PDF Processing
+
+async def process_pdf(path: str):
+
+    logger.info(f"Starting PDF processing: {path}")
+
+    pdf_path = Path(path)
+
+    extracted_text = PDFService.extract_text(pdf_path)
+
+    logger.info(f"Extracted text length: {len(extracted_text)}")
+
+    print("\n========== PDF TEXT ==========\n")
+    print(extracted_text[:3000])  # print first 3000 chars
+    print("\n==============================\n")
+
+# Routes
+
 @app.get("/")
 def home():
-    return {"message": "Welcome! Go to /docs to see all endpoints."}
 
-
-app = FastAPI()
-# ... keep your UPLOAD_DIR and home() code exactly the same ...
-
-# --- THE FIX ---
-# Define a strict type that explicitly tells Swagger UI to render a binary file selector
-SwaggerFile = Annotated[UploadFile, File(description="Select multiple files to upload")]
-
-@app.post("/upload/many")
-async def upload_many(
-    user_id: str = Form(...),
-    note: Optional[str] = Form(None),
-    files: list[SwaggerFile] = File(...),  # Use the custom Annotated type wrapper here
-):
-    total = 0
-    for f in files:
-        if f.content_type not in {"application/pdf"}:
-            raise HTTPException(415, f"Bad type for {f.filename}")
-        size = len(await f.read())
-        total += size
-        # save files in the upload directory
-    return {"count": len(files), "bytes": total, "user_id": user_id, "note": note}
+    return {
+        "message": "RAG ingestion API is running"
+    }
 
 
 @app.post("/upload/stream")
-async def upload_stream(file: UploadFile = File(...)):
-    target = UPLOAD_DIR / file.filename
-    # add logs here to see the content type and file size
-    if file.content_type not in { "application/pdf"}:
+async def upload_stream(
+    file: UploadFile = File(...)
+):
+    if not file_service.check_file_type(file.content_type):
         raise HTTPException(415, "Unsupported file type")
 
-    async with aiofiles.open(target, "wb") as out:
-        while chunk := await file.read(1024 * 1024):
-            await out.write(chunk)
-            logger.info(f"Processing chunk for {file.filename}")
-    return {"stored_as": str(target)}
+    saved_path = await file_service.save_upload(file)
+
+    file_size = saved_path.stat().st_size
+
+    return {
+        "filename": file.filename,
+        "size": file_size,
+        "path": str(saved_path),
+        "message": "File uploaded successfully"
+    }
 
 
-# --- NEW BACKGROUND TASK ENDPOINT ---
 @app.post("/upload/with-bg")
-async def upload_with_bg(background: BackgroundTasks, file: UploadFile = File(...)):
-    target = UPLOAD_DIR / file.filename
-    
-    if file.content_type not in { "application/pdf"}:
+async def upload_with_background(
+    background: BackgroundTasks,
+    file: UploadFile = File(...)
+):
+    if not file_service.check_file_type(file.content_type):
         raise HTTPException(415, "Unsupported file type")
 
-    async with aiofiles.open(target, "wb") as out:
-        while chunk := await file.read(1_000_000): # ~1MB chunks
-            await out.write(chunk)
-            logger.info(f"Processing chunk for {file.filename}")
+    saved_path = await file_service.save_upload(file)
 
-    # Trigger the background worker 
-    background.add_task(generate_thumbnail, str(target))
-    
-    return {"status": "queued", "file": file.filename}
+    background.add_task(process_pdf, str(saved_path))
+
+    file_size = saved_path.stat().st_size
+    return {
+        "filename": file.filename,
+        "size": file_size,
+        "path": str(saved_path),
+        "message": "File uploaded successfully"
+    }
+
+#Get list of all files in the upload folder with their name, size, and extension
+
+@app.get("/files")
+def list_files():
+    try:
+        # Convert settings path or service path to a clean Path object
+        upload_dir = Path(settings.UPLOAD_DIR)
+        
+        # Guard check if the upload folder does not exist yet
+        if not upload_dir.exists():
+            return {"files": [], "message": "Upload directory is empty"}
+            
+        # Scan the folder for files matching *.pdf or *.txt
+        all_files = []
+        for file_path in upload_dir.iterdir():
+            if file_path.is_file() and file_path.suffix.lower() in {".pdf", ".txt"}:
+                all_files.append({
+                    "filename": file_path.name,
+                    "size_bytes": file_path.stat().st_size,
+                    "extension": file_path.suffix.lower()
+                })
+                
+        return {
+            "total_count": len(all_files),
+            "files": all_files,
+            "message": "Files retrieved successfully"
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to list files: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error scanning file directory")
+
+#Read PDF endpoint
+
+@app.get("/read-pdf")
+def read_pdf(filename: str):
+    try:
+        # 1. Resolve path using settings config
+        upload_dir = Path(settings.UPLOAD_DIR)
+        target_path = upload_dir / filename
+
+        # 2. Check if the specific file exists on disk
+        if not target_path.exists():
+            raise HTTPException(status_code=404, detail=f"File '{filename}' not found")
+
+        # 3. Restrict endpoint to PDF extensions strictly
+        if not filename.lower().endswith('.pdf'):
+            raise HTTPException(status_code=400, detail="This endpoint only supports PDF extraction files")
+
+        # 4. Use your existing PDFService to pull text blocks
+        logger.info(f"API request to extract text layer from: {filename}")
+        extracted_text = PDFService.extract_text(target_path)
+
+        return {
+            "message": "PDF text extracted successfully!",
+            "filename": filename,
+            "extracted_text": extracted_text[:3000]  # First 3000 chars matching specs
+        }
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"Failed to read PDF stream: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal processing error parsing PDF contents")
+
+
+# one endpoint for upload file 
+# response with file name, size, path, and message
+
+# read pdf  endpoint 
+# accept file name  
+# response with extracted text (first 3000 chars) and message
