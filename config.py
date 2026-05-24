@@ -1,18 +1,14 @@
-from pathlib import Path
-import logging
-
-# Configure logging globally
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
-)
+from pydantic_settings import BaseSettings
+from typing import List, Optional
 
 
-class Settings:
+class Settings(BaseSettings):
 
-    # Main upload folder
     UPLOAD_DIR = Path("uploads")
 
+    
+    class Config:
+        env_file = ".env" # get paramters from the .env file
 
-#  reusable settings object
+
 settings = Settings()
