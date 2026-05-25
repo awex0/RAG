@@ -9,22 +9,18 @@ class PDFService:
 
     @staticmethod
     def extract_text(pdf_path: Path) -> str:
-        """
-        Extract text from PDF pages.
-        """
 
+        # Extract text from a PDF file with error handling and logging
         try:
             reader = PdfReader(pdf_path)
 
             extracted_text = ""
 
             for page_number, page in enumerate(reader.pages):
-
                 page_text = page.extract_text()
 
                 if page_text:
                     extracted_text += page_text + "\n"
-
                 logger.info(f"Processed page {page_number + 1}")
 
             return extracted_text
@@ -32,6 +28,5 @@ class PDFService:
         except Exception as e:
             logger.error(f"PDF extraction failed: {str(e)}")
             raise
-
-
+        
 pdf_service = PDFService()
