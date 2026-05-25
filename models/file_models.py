@@ -5,6 +5,7 @@ from pydantic import BaseModel
 class FileUploadResponse(BaseModel):
 
     success: bool
+    status_code: int
     file_id: str
     original_filename: str
     stored_filename: str
@@ -15,5 +16,6 @@ class FileUploadResponse(BaseModel):
 class FileContentResponse(BaseModel):
 
     success: bool
+    status_code: int
     filename: str
     content: str

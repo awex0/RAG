@@ -1,5 +1,5 @@
 import logging
-from api.file import FileUploadResponse, FileContentResponse
+from models.file_models import FileUploadResponse, FileContentResponse
 from fastapi import (
     APIRouter,
     UploadFile,
@@ -59,13 +59,13 @@ async def upload_stream(
     
 # Return structured response with file details and status
     return {
+    "success": True,
+    "status_code": status.HTTP_201_CREATED,
     "file_id": file_id,
     "original_filename": file.filename,
     "stored_filename": unique_name,
     "size": target_path.stat().st_size,
-    "path": str(target_path),
     "message": message,
-    "status_code": 200
 }  
 
 #API endpoint to retrieve file content with error handling form missing files and read errors
@@ -80,6 +80,7 @@ async def get_file_content(
             filename )
 
         return {
+            "success": True,
             "filename": filename,
             "content": content  }
     
