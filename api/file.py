@@ -76,11 +76,11 @@ async def get_file_content(
 
     try:
 
-        content = await file_service.read_text_file(
-            filename )
+        content = await file_service.read_text_file(filename )
 
         return {
             "success": True,
+            "status_code": status.HTTP_200_OK,
             "filename": filename,
             "content": content  }
     
