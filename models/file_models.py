@@ -3,7 +3,6 @@ from pydantic import BaseModel
 #Pydantic response models. Professional APIs define schemas.
 
 class FileUploadResponse(BaseModel):
-
     success: bool
     status_code: int
     file_id: str
@@ -14,7 +13,6 @@ class FileUploadResponse(BaseModel):
 
 
 class FileContentResponse(BaseModel):
-
     success: bool
     status_code: int
     filename: str

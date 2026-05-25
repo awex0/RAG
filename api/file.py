@@ -5,6 +5,7 @@ from fastapi import (
     UploadFile,
     File,
     HTTPException,
+    JSONResponse,
     status)
 
 from config import settings
@@ -57,16 +58,21 @@ async def upload_stream(
         raise HTTPException(
             status_code=500, detail=message )
     
+
 # Return structured response with file details and status
-    return {
-    "success": True,
-    "status_code": status.HTTP_201_CREATED,
-    "file_id": file_id,
-    "original_filename": file.filename,
-    "stored_filename": unique_name,
-    "size": target_path.stat().st_size,
-    "message": message,
-}  
+    # return as jsonresponse 
+    return JSONResponse(
+        status_code=status.HTTP_201_CREATED,
+        content={
+            "success": True,
+            "file_id": file_id,
+            "original_filename": file.filename,
+            "stored_filename": unique_name,
+            "size": target_path.stat().st_size,
+            "message": message,
+        }
+    )
+
 
 #API endpoint to retrieve file content with error handling form missing files and read errors
 @router.get("/files/{filename}", response_model=FileContentResponse)
@@ -75,15 +81,19 @@ async def get_file_content(
 ):
 
     try:
+         # validate filename to prevent path traversal
 
         content = await file_service.read_text_file(filename )
-
-        return {
-            "success": True,
-            "status_code": status.HTTP_200_OK,
-            "filename": filename,
-            "content": content  }
     
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={
+                "success": True,
+                "filename": filename,
+                "content": content
+            }
+        )
+
     except FileNotFoundError:
              raise HTTPException(
             status_code=404, detail="File not found")
