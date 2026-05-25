@@ -1,9 +1,9 @@
 venv
-uploads/
+*.uploads/
 *.pyc
 *.cpython
 *.png
 *.env
-*.gitignore
+*.gitignore/
 *.__pycache__/
 
