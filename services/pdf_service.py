@@ -8,9 +8,9 @@ logger = logging.getLogger(__name__)
 class PDFService:
 
     @staticmethod
-    def extract_text(pdf_path: Path) -> tuple[bool, str]:
+    def extract_text(pdf_path: Path) -> str:
         """
-        Extract all text from a PDF file.
+        Extract text from PDF pages.
         """
 
         try:
@@ -27,10 +27,11 @@ class PDFService:
 
                 logger.info(f"Processed page {page_number + 1}")
 
-            return True, extracted_text
+            return extracted_text
 
         except Exception as e:
-            logger.error(f"PDF extraction failed: {e}")
-            return False , f"PDF extraction failed: {e}"
+            logger.error(f"PDF extraction failed: {str(e)}")
+            raise
 
-        
+
+pdf_service = PDFService()

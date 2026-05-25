@@ -5,12 +5,12 @@ from api.file import router as file_router
 
 app = FastAPI(
     title="RAG Ingestion API",
-    description="Backend ingestion pipeline for PDFs",
+    description="Backend ingestion pipeline for Files and PDFs",
     version="1.0.0"
 )
 
 
-# Register routes
+# Register API routes
 app.include_router(file_router)
 
 

@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 
 router = APIRouter(
-    prefix="",
     tags=["Files"]
 )
 
@@ -25,36 +24,85 @@ async def upload_stream(
     file: UploadFile = File(...)
 ):
 
-    is_valid, validation_message = file_service.check_validity(file)
+    # Validate uploaded file
+    is_valid, validation_message = (
+        file_service.validate_upload(file)
+    )
 
     if not is_valid:
+
         raise HTTPException(
             status_code=400,
             detail=validation_message
         )
 
-    unique_name = file_service.generate_unique_filename(
-        file.filename
+    # Generate unique filename
+    unique_name = (
+        file_service.generate_unique_filename(
+            file.filename
+        )
     )
 
+    # Extract UUID as file ID
     file_id = unique_name.split("_", 1)[0]
 
-    target_path = settings.UPLOAD_DIR / unique_name
+    # Build target path
+    target_path = (
+        settings.UPLOAD_DIR / unique_name
+    )
 
-    success, message = await file_service.save_upload(
-        file,
-        target_path
+    # Save uploaded file
+    success, message = (
+        await file_service.save_upload(
+            file,
+            target_path
+        )
     )
 
     if not success:
+
         raise HTTPException(
             status_code=500,
             detail=message
         )
 
     return {
-        "file_id": file_id,
-        "filename": file.filename,
-        "size": target_path.stat().st_size,
-        "message": message
-    }
+    "file_id": file_id,
+    "original_filename": file.filename,
+    "stored_filename": unique_name,
+    "size": target_path.stat().st_size,
+    "path": str(target_path),
+    "message": message
+}
+    
+
+
+@router.get("/files/{filename}")
+async def get_file_content(
+    filename: str
+):
+
+    try:
+
+        content = await file_service.read_text_file(
+            filename
+        )
+
+        return {
+            "filename": filename,
+            "content": content
+        }
+
+    except FileNotFoundError:
+
+        raise HTTPException(
+            status_code=404,
+            detail="File not found"
+        )
+
+    except Exception as e:
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
