@@ -6,4 +6,5 @@ venv
 *.env
 *.gitignore/
 *.__pycache__/
-
+*.pdf
+*.txt
