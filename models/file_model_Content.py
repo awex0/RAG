@@ -1,7 +1,18 @@
 from pydantic import BaseModel
 
-#Pydantic response models. Professional APIs define schemas.
+# fix 
+# File structure issue (models)
+# You currently have:
+# file_Upload.py
+# file_model_Content.py
+# Trainer feedback:
+# This is over-splitting for a small project.
+# Fix (good practice for beginners):
+# 👉 Merge into ONE file:
+# models/file.py
 
+
+#Pydantic response models. Professional APIs define schemas.
 class FileContentResponse(BaseModel):
     filename: str = ""
     content: str = ""

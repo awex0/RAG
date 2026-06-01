@@ -18,32 +18,103 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Files"])
 
+# ❗ 9. API logic mixing concerns
+# Problem:
 
+# Inside endpoint you:
+
+# validate
+# generate filename
+# save file
+# build response
+# Beginner improvement:
+
+# Keep endpoint simple:
+# 👉 move logic into service layer later
+
+#------------------------------------------------
+# ❗ 10. Missing logging in important places
+
+# You only log errors.
+
+# Add logging for:
+# successful upload
+# file validation failure
+# chunking request
+
+# Example:
+
+# logger.info(f"File uploaded: {unique_name}")
+
+#---------------------------------------------
+# ❗ 11. API Response consistency issue
+# Problem:
+
+# Sometimes you raise HTTPException,
+# sometimes return ApiResponse.
+
+# Fix:
+
+# Be consistent:
+
+# Errors → HTTPException
+# Success → ApiResponse
 
 # API endpoint for uploading files with validation, unique naming, and error handling
-
 @router.post("/files/", response_model=ApiResponse[FileUploadResponse],
              status_code=status.HTTP_201_CREATED
 )
 async def upload_stream(file: UploadFile = File(...)):
     
-    #1. Validate the file (size, type.)
+    #  ❗ 6. Missing file size handling (important security point)
+    # You wrote comment but NOT implemented:
+    # Problem:
+    # No limit on upload size → can crash server
+    # Fix idea (simple):
+    # MAX_SIZE = 10 * 1024 * 1024  # 10MB
+    # Check inside loop.
+    # dont add () to the method call like this (file_service.validate_upload(file) )
+
     is_valid, validation_message = (file_service.validate_upload(file) )
 
     if not is_valid:
         raise HTTPException(status_code=400,detail=validation_message)
 
+
+    # ❗ 5. File ID extraction is fragile
+    # Problem:
+    # file_id = unique_name.split("_", 1)[0]
+    # This depends on naming format.
+    # Better beginner fix:
+    # Store UUID separately:
+    # file_id = str(uuid.uuid4())
+    # unique_name = f"{file_id}_{original_name}"
+
     #2 Generate unique filename
-    unique_name = (
-        file_service.generate_unique_filename(
-            file.filename or "unnamed_file"))
-    
+    unique_name = file_service.generate_unique_filename(
+            file.filename or "unnamed_file"
+    )
     file_id = unique_name.split("_", 1)[0]
+    
+    # 4. Wrong type for UPLOAD_DIR usage
+    # Problem:
+    # self.upload_dir = Path(settings.UPLOAD_DIR)
+    # But later:
+    # settings.UPLOAD_DIR / unique_name
+    # This may break if UPLOAD_DIR is a string.
+    # Fix:
+    # Be consistent:
+    # UPLOAD_DIR = Path(settings.UPLOAD_DIR)
+    # target_path = UPLOAD_DIR / unique_name
 
     #3 Build target path
+    # dont add () to the method call like this (settings.UPLOAD_DIR / unique_name )
     target_path = (settings.UPLOAD_DIR / unique_name )
+    
+    # dont add () to the method call like this (await file_service.save_upload(file,target_path   ) )
     success, message = (await file_service.save_upload(file,target_path   )
     )
+
     #4 Handle save errors
     if not success:
         raise HTTPException( status_code=500, detail=message )
@@ -55,6 +126,7 @@ async def upload_stream(file: UploadFile = File(...)):
         stored_filename=unique_name,
         message="File processed and uploaded successfully.",
     )
+
     # Return the uniform response envelope
     return ApiResponse(status_code=201, success=True, content=file_metadata)
 

@@ -33,8 +33,7 @@ class FileService:
 
         return True, ""
 
-    def generate_unique_filename(
-        self,original_name: str) -> str:
+    def generate_unique_filename(self,original_name: str) -> str:
         
     # Generate a unique filename using UUID to prevent collisions
         return f"{uuid.uuid4()}_{original_name}"
@@ -62,6 +61,14 @@ class FileService:
         #  chunk_size: Max number of characters per chunk.
         #  chunk_overlap: Number of characters shared between chunks to keep context alive.
 
+        #   7. Chunking safety issue
+        # Problem:
+        # if not text: return []
+        # Good, but missing validation:
+        # Improve:
+        # if not text or len(text.strip()) == 0:
+        #     return []
+
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
@@ -81,6 +88,13 @@ class FileService:
         if not target_path.exists():
             raise FileNotFoundError("File does not exist")
         
+    #  8. Async file reading line (hard to read)
+    # Problem:
+    # async with aiofiles.open(... ) as file:content = await file.read()
+    # Fix (clean code):
+    # async with aiofiles.open(target_path, "r", encoding="utf-8") as file:
+    #     content = await file.read()
+    
     # Read file content asynchronously with error handling
         try:
             async with aiofiles.open(
