@@ -2,23 +2,23 @@ import logging
 import os
 from models.file_Upload import FileUploadResponse
 from models.file_model_Content import FileContentResponse
+from models.file_model_Content import FileChunkResponse
 from fastapi import (
     APIRouter,
+    Query,
     UploadFile,
     File,
     HTTPException,
-    status)
-
+    status,)
 from config import settings
-from models.models.base_response import ApiResponse
+from models.base_response import ApiResponse
 from services.file_service import file_service
-
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(
-    tags=["Files"]
-)
+router = APIRouter(tags=["Files"])
+
+
 
 # API endpoint for uploading files with validation, unique naming, and error handling
 
@@ -36,7 +36,7 @@ async def upload_stream(file: UploadFile = File(...)):
     #2 Generate unique filename
     unique_name = (
         file_service.generate_unique_filename(
-            file.filename )   )
+            file.filename or "unnamed_file"))
     
     file_id = unique_name.split("_", 1)[0]
 
@@ -51,16 +51,46 @@ async def upload_stream(file: UploadFile = File(...)):
     # 5. Package the data cleanly into your mentor's structure
     file_metadata = FileUploadResponse(
         file_id=file_id,
-        original_filename=file.filename,
+        original_filename=file.filename or "unnamed_file",
         stored_filename=unique_name,
         message="File processed and uploaded successfully.",
     )
-
     # Return the uniform response envelope
     return ApiResponse(status_code=201, success=True, content=file_metadata)
 
 
+
+#Chunking endpoint to split file content into smaller pieces.
+
+# Chunking endpoint to split file content into smaller pieces using LangChain
+@router.get(
+    "/files/{filename}/chunks", response_model=ApiResponse[FileChunkResponse]
+)
+async def get_file_chunks(
+    filename: str,
+    chunk_size: int = Query(default=500, ge=100, le=2000, description="The maximum size of each text chunk",),
+    chunk_overlap: int = Query( default=50,ge=0,le=500,description="The number of overlapping characters between chunks",),
+):
+    
+    # Call your programmatic master route to fetch and validate the file
+    file_response = await get_file_content(filename)
+
+    #  Process chunking using your updated LangChain method inside file_service
+    text_chunks = file_service.chunk_text(
+        text=file_response.content.content,
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
+    )
+    
+    return ApiResponse(
+        status_code=status.HTTP_200_OK,
+        success=True,
+        content=FileChunkResponse(
+            filename=filename,total_chunks=len(text_chunks),chunks=text_chunks),
+    )
+
 # API endpoint to retrieve file content with error handling from missing files and read errors
+
 @router.get(
     "/files/{filename}", response_model=ApiResponse[FileContentResponse]
 )
@@ -79,8 +109,10 @@ async def get_file_content(filename: str):
 
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="File not found")
-
     except Exception as e:
         logger.error(f"Error reading file {safe_filename}: {e}")
         raise HTTPException(status_code=500, detail="An error occurred while reading the file.")
-        
+
+
+
+ 

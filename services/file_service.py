@@ -4,7 +4,7 @@ from pathlib import Path
 import aiofiles
 from fastapi import UploadFile
 from config import settings
-
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 logger = logging.getLogger(__name__)
 
@@ -21,33 +21,26 @@ class FileService:
         return content_type in settings.ALLOWED_TYPES
 
     def validate_upload(
-        self,
-        file: UploadFile | None
-    ) -> tuple[bool, str]:
+        self,file: UploadFile | None) -> tuple[bool, str]:
         
     # Validate the uploaded file for presence, filename, and allowed type
         if not file:
             return False, "No file uploaded"
         if not file.filename:
             return False, "Filename is missing"
-        if not self.check_file_type(file.content_type):
+        if not self.check_file_type(file.content_type or ""):
             return False, "Unsupported file type"
 
         return True, ""
 
     def generate_unique_filename(
-        self,
-        original_name: str
-    ) -> str:
+        self,original_name: str) -> str:
         
     # Generate a unique filename using UUID to prevent collisions
         return f"{uuid.uuid4()}_{original_name}"
 
     async def save_upload(
-        self,
-        file: UploadFile,
-        target_path: Path
-    ) -> tuple[bool, str]:
+        self, file: UploadFile,target_path: Path ) -> tuple[bool, str]:
         
     # Save uploaded file asynchronously with error handling
         try:
@@ -63,12 +56,24 @@ class FileService:
         
 
 
+    def chunk_text(self, text: str, chunk_size: int = 500, chunk_overlap: int = 50) -> list[str]:
+        if not text: return []
+
+        #  chunk_size: Max number of characters per chunk.
+        #  chunk_overlap: Number of characters shared between chunks to keep context alive.
+
+        text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            separators = ["\n\n", "\n", " ", ""]
+        )
+        return text_splitter.split_text(text)
+    
+
     # Read text file content with sanitization and error handling
     async def read_text_file(
-        self,
-        filename: str  ) -> str:
+        self,filename: str) -> str:
 
-    # Sanitize filename to prevent path traversal
         safe_name = Path(filename).name
         target_path = self.upload_dir / safe_name
 
@@ -79,16 +84,13 @@ class FileService:
     # Read file content asynchronously with error handling
         try:
             async with aiofiles.open(
-                target_path,
-                "r", encoding="utf-8"
-            ) as file:
-             content = await file.read()
+                target_path,  "r", encoding="utf-8") as file:content = await file.read()
             return content
 
         except Exception as e:
-
             logger.error(f"Failed to read file: {str(e)}")
             raise
-
     # Singleton-style reusable service instance
+    
 file_service = FileService()
+
