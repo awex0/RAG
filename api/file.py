@@ -62,21 +62,32 @@ async def upload_stream(file: UploadFile = File(...)):
 
 #Chunking endpoint to split file content into smaller pieces.
 
+# Chunking endpoint to split file content into smaller pieces using LangChain
 @router.get(
     "/files/{filename}/chunks", response_model=ApiResponse[FileChunkResponse]
 )
 async def get_file_chunks(
     filename: str,
-    chunk_size: int = Query(default=500,ge=100,le=2000, description="The number of characters per chunk", ),
+    chunk_size: int = Query(default=500, ge=100, le=2000, description="The maximum size of each text chunk",),
+    chunk_overlap: int = Query( default=50,ge=0,le=500,description="The number of overlapping characters between chunks",),
 ):
     
-        file_response = await get_file_content(filename)
-        text_chunks = file_service.chunk_text(file_response.content.content, chunk_size)
+    # Call your programmatic master route to fetch and validate the file
+    file_response = await get_file_content(filename)
 
-        return ApiResponse(
-            status_code=status.HTTP_200_OK, success=True,
-            content=FileChunkResponse(filename=filename,total_chunks=len(text_chunks),chunks=text_chunks,),
-        )
+    #  Process chunking using your updated LangChain method inside file_service
+    text_chunks = file_service.chunk_text(
+        text=file_response.content.content,
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
+    )
+    
+    return ApiResponse(
+        status_code=status.HTTP_200_OK,
+        success=True,
+        content=FileChunkResponse(
+            filename=filename,total_chunks=len(text_chunks),chunks=text_chunks),
+    )
 
 # API endpoint to retrieve file content with error handling from missing files and read errors
 

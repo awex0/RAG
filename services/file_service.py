@@ -4,7 +4,7 @@ from pathlib import Path
 import aiofiles
 from fastapi import UploadFile
 from config import settings
-
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 logger = logging.getLogger(__name__)
 
@@ -56,17 +56,19 @@ class FileService:
         
 
 
-    def chunk_text(self, text: str, chunk_size: int = 500) -> list[str]:
-        #Splits a long text string into smaller pieces of a fixed character size.
+    def chunk_text(self, text: str, chunk_size: int = 500, chunk_overlap: int = 50) -> list[str]:
         if not text: return []
 
-    # This loops through the text, stepping forward by the chunk_size each time
-        chunks = []
-        for i in range(0, len(text), chunk_size):
-             chunk = text[i : i + chunk_size]
-             chunks.append(chunk)
-        return chunks
+        #  chunk_size: Max number of characters per chunk.
+        #  chunk_overlap: Number of characters shared between chunks to keep context alive.
 
+        text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            separators = ["\n\n", "\n", " ", ""]
+        )
+        return text_splitter.split_text(text)
+    
 
     # Read text file content with sanitization and error handling
     async def read_text_file(
