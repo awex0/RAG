@@ -1,3 +1,6 @@
+# BUG: comment just repeats the filename
+# the file path already tells us this
+# delete comments that say nothing new
 # models/base_response.py
 from typing import Generic, TypeVar
 from pydantic import BaseModel
