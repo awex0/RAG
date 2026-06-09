@@ -1,5 +1,4 @@
 from qdrant_client.models import Distance, VectorParams, SparseVectorParams, PointStruct, SparseVector
-from repositories.vector_base import VectorDatabaseInterface
 from typing import Any, Optional
 from qdrant_client import AsyncQdrantClient
 import logging
@@ -9,7 +8,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Qdrant implementation for abstract vector interface.
-class QdrantRepository(VectorDatabaseInterface):
+class QdrantRepository():
 
     # Changed api_key to None by default. Local Docker doesn't need a key 
     # unless you explicitly configured QDRANT__SERVICE__API_KEY.
