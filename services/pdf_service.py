@@ -1,3 +1,4 @@
+import asyncio
 from pathlib import Path
 from pypdf import PdfReader
 import logging
@@ -8,60 +9,34 @@ logger = logging.getLogger(__name__)
 class PDFService:
 
     @staticmethod
-    # BUG: this method is not async
-    # FastAPI runs on async event loop
-    # sync call will block all requests
-    # wrap it with asyncio.to_thread()
-    # make the def async instead
-    def extract_text(pdf_path: Path) -> str:
-
-        # this comment says nothing useful
-        # reader already tells us what happens
-        # delete comments that repeat the code
+    
+    async def extract_text(pdf_path: Path) -> str:
         try:
-            reader = PdfReader(pdf_path)
-
-            # using string is the wrong choice
-            # += creates a new string each time
-            # gets slower with every page
-            # use a list then join at end
-            extracted_text = ""
+          
+            #asyncio.to thread () to push the heavy PDF reading to thread
+            reader = await asyncio.to_thread(PdfReader, pdf_path)
+        
+            text_pages = []
 
             for page_number, page in enumerate(reader.pages):
                 page_text = page.extract_text()
 
-                if page_text:
-                    # += in a loop is O(n squared)
-                    # 500 pages means 500 new strings
-                    # use pages.append(page_text) instead
-                    extracted_text += page_text + "\n"
+                if page_text and page_text.strip():
+                    text_pages.append(page_text + "\n")
+                    
+                    logger.info(f"Processed page {page_number + 1} successfully")
+                else:
+                
+                    logger.warning(f"Page {page_number + 1} is empty or scanned image")
 
-                # log is outside the if block
-                # logs even when page has no text
-                # move it inside the if block
-                # add a warning for empty pages
-                logger.info(f"Processed page {page_number + 1}")
+            # Join the list together at the very end in a high-performance O(N) operation
+            extracted_text = "".join(text_pages)
 
-            # empty string means scanned PDF
-            # no error raised, caller gets nothing
-            # add a check: if not extracted_text
-            # raise ValueError with clear message
+            if not extracted_text.strip():
+                raise ValueError("PDF extraction yielded zero text. The file might be a scanned image or corrupted.")
+
             return extracted_text
 
         except Exception as e:
             logger.error(f"PDF extraction failed: {str(e)}")
             raise
-
-
-# BUG: class has only static methods
-# no reason to create an instance here
-# call it directly: PDFService.extract_text()
-# or remove @staticmethod and use self
-# pick one pattern and stick to it
-pdf_service = PDFService()
-
-# BUG: this service is never used
-# file_service.py ignores PDFs completely
-# uploaded PDF text is never extracted
-# wire it in process_file_upload()
-# check content_type == application/pdf
